@@ -1,0 +1,354 @@
+import React, { useState, useEffect, useRef } from 'react';
+
+const TOTAL_GAMES = 7;
+const TOTAL_PLAYERS = 7;
+const CITY_NAMES = ['sidi kacem', 'Tanger', 'Taroudant', 'Taounat', 'Casablanca', 'Allemagne', 'Dakhla'];
+
+const Dashboard = () => {
+  const [games, setGames] = useState(Array(TOTAL_GAMES).fill(0).map(() => Array(TOTAL_PLAYERS).fill(0)));
+  const [displayMode, setDisplayMode] = useState('individual');
+  const [activeTablet, setActiveTablet] = useState(null);
+  const [activeGame, setActiveGame] = useState(0);
+  const [connected, setConnected] = useState(false);
+  const [serverUrl, setServerUrl] = useState('');
+  const [displayedTablets, setDisplayedTablets] = useState(Array(TOTAL_PLAYERS).fill(false));
+  const [showingCityNames, setShowingCityNames] = useState(false);
+  const ws = useRef(null);
+
+  useEffect(() => {
+    const wsServerUrl = window.location.hostname === 'localhost'
+      ? `ws://localhost:3001`
+      : `ws://${window.location.hostname}:3001`;
+
+    setServerUrl(wsServerUrl.replace('ws://', 'http://'));
+    ws.current = new WebSocket(wsServerUrl);
+
+    ws.current.onopen = () => {
+      console.log('Connected to WebSocket server');
+      setConnected(true);
+    };
+
+    ws.current.onclose = () => {
+      console.log('Disconnected from WebSocket server');
+      setConnected(false);
+      setTimeout(() => {
+        const newWs = new WebSocket(wsServerUrl);
+        ws.current = newWs;
+      }, 3000);
+    };
+
+    ws.current.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
+    ws.current.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        if (message.type === 'init') {
+          setGames(message.data.games);
+          setDisplayMode(message.data.displayMode);
+          setActiveTablet(message.data.activeTablet);
+          setActiveGame(message.data.activeGame || 0);
+          if (message.data.displayedTablets) {
+            setDisplayedTablets(message.data.displayedTablets);
+          }
+          setShowingCityNames(message.data.displayMode === 'city_name');
+        }
+      } catch (error) {
+        console.error('Error processing message:', error);
+      }
+    };
+
+    return () => {
+      if (ws.current) ws.current.close();
+    };
+  }, []);
+
+  const sendWs = (data) => {
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify(data));
+    } else {
+      alert('Not connected to server. Please refresh the page.');
+    }
+  };
+
+  const updateSpecificTablet = (tabletId) => {
+    const newDisplayedTablets = [...displayedTablets];
+    newDisplayedTablets[tabletId] = true;
+    setDisplayedTablets(newDisplayedTablets);
+    sendWs({
+      type: 'update_specific_tablet',
+      data: { games, displayMode: 'individual', tabletId, activeGame, displayedTablets: newDisplayedTablets }
+    });
+  };
+
+  const updateAllTablets = () => {
+    sendWs({
+      type: 'update_all_tablets',
+      data: { games, displayMode, activeTablet, activeGame, displayedTablets }
+    });
+  };
+
+  const handleScoreChange = (gameIndex, playerIndex, value) => {
+    const newGames = [...games];
+    newGames[gameIndex][playerIndex] = parseInt(value) || 0;
+    setGames(newGames);
+  };
+
+  const handleDisplayIndividual = (tabletId) => {
+    setDisplayMode('individual');
+    setActiveTablet(tabletId);
+    setShowingCityNames(false);
+    setTimeout(() => updateSpecificTablet(tabletId), 100);
+  };
+
+  const handleDisplayTotal = () => {
+    setDisplayMode('total');
+    setActiveTablet(null);
+    setShowingCityNames(false);
+    const allDisplayed = Array(TOTAL_PLAYERS).fill(true);
+    setDisplayedTablets(allDisplayed);
+    setTimeout(() => {
+      sendWs({
+        type: 'update_all_tablets',
+        data: { games, displayMode: 'total', activeTablet: null, activeGame, displayedTablets: allDisplayed }
+      });
+    }, 100);
+  };
+
+  // Show city name image on every tablet simultaneously
+  const handleShowCityNames = () => {
+    setShowingCityNames(true);
+    setDisplayMode('city_name');
+    const allDisplayed = Array(TOTAL_PLAYERS).fill(true);
+    setDisplayedTablets(allDisplayed);
+    setTimeout(() => {
+      sendWs({
+        type: 'update_all_tablets',
+        data: { games, displayMode: 'city_name', activeTablet: null, activeGame, displayedTablets: allDisplayed }
+      });
+    }, 100);
+  };
+
+  // Go back to score view — send update_all_tablets with displayMode: 'individual'
+  // This reuses the already-working broadcast path instead of reset_all_tablets
+  const handleHideCityNames = () => {
+    const newDisplayedTablets = Array(TOTAL_PLAYERS).fill(false);
+    setShowingCityNames(false);
+    setDisplayMode('individual');
+    setDisplayedTablets(newDisplayedTablets);
+    setTimeout(() => {
+      sendWs({
+        type: 'update_all_tablets',
+        data: {
+          games,
+          displayMode: 'individual',
+          activeTablet: null,
+          activeGame,
+          displayedTablets: newDisplayedTablets
+        }
+      });
+    }, 100);
+  };
+
+  const handleSetActiveGame = (gameIndex) => {
+    setActiveGame(gameIndex);
+    setTimeout(() => {
+      sendWs({
+        type: 'active_game_changed',
+        data: { games, displayMode, activeTablet, activeGame: gameIndex, displayedTablets }
+      });
+    }, 100);
+  };
+
+  const getPlayerTotal = (playerIndex) =>
+    games.reduce((sum, game) => sum + game[playerIndex], 0);
+
+  const resetAllScores = () => {
+    const newDisplayedTablets = Array(TOTAL_PLAYERS).fill(false);
+    setDisplayedTablets(newDisplayedTablets);
+    setShowingCityNames(false);
+    setDisplayMode('individual');
+    sendWs({
+      type: 'update_all_tablets',
+      data: {
+        games,
+        displayMode: 'individual',
+        activeTablet: null,
+        activeGame,
+        displayedTablets: newDisplayedTablets
+      }
+    });
+  };
+
+  return (
+    <div className="container mx-auto p-4 max-w-6xl">
+      <h1 className="text-black text-3xl font-bold mb-4">Score Dashboard</h1>
+
+      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        {/* Connection status */}
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center">
+            <span className={`w-4 h-4 rounded-full mr-2 ${connected ? 'bg-green-500' : 'bg-red-500'}`}></span>
+            <span>{connected ? 'Connected to server' : 'Disconnected'}</span>
+          </div>
+          <div>
+            <p className="text-black text-sm">Tablet URLs:</p>
+            <p className="text-xs text-gray-500">{serverUrl}/tablet/[0-6]</p>
+          </div>
+        </div>
+
+        {/* Active Game Selection */}
+        <div className="mb-6">
+          <h2 className="text-black text-xl font-semibold mb-2">Active Game</h2>
+          <div className="flex space-x-2 overflow-x-auto pb-2">
+            {Array.from({ length: TOTAL_GAMES }).map((_, gameIndex) => (
+              <button
+                key={gameIndex}
+                className={`text-black px-4 py-2 ${activeGame === gameIndex ? 'bg-purple-600 text-white' : 'bg-gray-200'} rounded-md`}
+                onClick={() => handleSetActiveGame(gameIndex)}
+              >
+                Game {gameIndex + 1}
+              </button>
+            ))}
+          </div>
+          <p className="text-sm mt-2">
+            <span className="text-black font-bold">Current active game: {activeGame + 1}</span>
+          </p>
+        </div>
+
+        {/* Score table */}
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead>
+              <tr>
+                <th className="text-black px-4 py-2 border">Game / City</th>
+                {CITY_NAMES.map((city, cityIndex) => (
+                  <th key={cityIndex} className="text-black px-4 py-2 border">
+                    {city}
+                    {displayedTablets[cityIndex] && (
+                      <span className="ml-2 inline-block w-2 h-2 bg-green-500 rounded-full"
+                            title="Currently displayed on tablet"></span>
+                    )}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {games.map((game, gameIndex) => (
+                <tr key={gameIndex} className={activeGame === gameIndex ? 'bg-purple-100' : ''}>
+                  <td className="text-black px-4 py-2 border font-semibold flex items-center justify-between">
+                    <span>Game {gameIndex + 1}</span>
+                    {activeGame !== gameIndex && (
+                      <button
+                        className="ml-2 px-2 py-1 bg-blue-500 text-white text-xs rounded"
+                        onClick={() => handleSetActiveGame(gameIndex)}
+                      >
+                        Activate
+                      </button>
+                    )}
+                  </td>
+                  {game.map((score, playerIndex) => (
+                    <td key={playerIndex} className="px-4 py-2 border">
+                      <input
+                        type="number"
+                        className="text-black w-full p-2 border rounded"
+                        value={score}
+                        onChange={(e) => handleScoreChange(gameIndex, playerIndex, e.target.value)}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+              <tr className="bg-gray-100">
+                <td className="text-black px-4 py-2 border font-bold">Total</td>
+                {Array.from({ length: TOTAL_PLAYERS }).map((_, playerIndex) => (
+                  <td key={playerIndex} className="text-black px-4 py-2 border font-bold text-center">
+                    {getPlayerTotal(playerIndex)}
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Individual tablet display buttons */}
+        <div className="mt-6 grid grid-cols-4 gap-4">
+          {CITY_NAMES.map((city, tabletIndex) => (
+            <div key={tabletIndex} className="flex flex-col items-center">
+              <p className="text-black mb-2">{city}</p>
+              <button
+                className={`px-4 py-2 ${displayedTablets[tabletIndex] && displayMode !== 'city_name' ? 'bg-green-500' : 'bg-blue-500'} text-white rounded hover:bg-blue-600 mb-2 w-full`}
+                onClick={() => handleDisplayIndividual(tabletIndex)}
+              >
+                Display Score
+              </button>
+              <a
+                href={`/tablet/${tabletIndex}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-blue-500 underline"
+              >
+                Open Tablet View
+              </a>
+            </div>
+          ))}
+        </div>
+
+        {/* Main action buttons */}
+        <div className="mt-6 flex flex-wrap gap-4">
+          <button
+            className={`px-6 py-3 ${displayMode === 'total' ? 'bg-green-600' : 'bg-green-500'} text-white rounded-lg hover:bg-green-700 font-bold text-lg`}
+            onClick={handleDisplayTotal}
+          >
+            Display Total Scores
+          </button>
+
+          <button
+            className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-700 font-bold text-lg"
+            onClick={resetAllScores}
+          >
+            Reset All Displays
+          </button>
+
+          <button
+            className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-700 font-bold text-lg"
+            onClick={() => updateAllTablets()}
+          >
+            Update All Tablets
+          </button>
+        </div>
+
+        {/* ── City Names Card ── */}
+        <div className={`mt-6 p-5 rounded-xl border-2 flex flex-wrap items-center gap-4 ${showingCityNames ? 'bg-yellow-100 border-yellow-500' : 'bg-yellow-50 border-yellow-300'}`}>
+          <div className="flex-1">
+            <p className="text-black font-bold text-lg">City Name Cards</p>
+            <p className="text-sm text-gray-600">
+              {showingCityNames
+                ? '✅ All tablets are currently showing their city name image.'
+                : "Show each city's name image on all tablets at the same time."}
+            </p>
+          </div>
+          {!showingCityNames ? (
+            <button
+              className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg font-bold text-lg shadow-md"
+              onClick={handleShowCityNames}
+            >
+               Show City Names on All Tablets
+            </button>
+          ) : (
+            <button
+              className="px-6 py-3 bg-gray-700 hover:bg-gray-900 text-white rounded-lg font-bold text-lg shadow-md"
+              onClick={handleHideCityNames}
+            >
+              ↩ Back to Score View
+            </button>
+          )}
+        </div>
+
+      </div>
+    </div>
+  );
+};
+
+export default Dashboard;

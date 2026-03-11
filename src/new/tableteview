@@ -1,0 +1,146 @@
+import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
+
+const BACKGROUND_IMAGES = [
+  '/sidi kacem.jpg',
+  '/Tanger.jpg',
+  '/Taroudant.jpg',
+  '/Taounat.jpg',
+  '/Casablanca.jpg',
+  '/Allemagne.jpg',
+  '/Dakhla.jpg'
+];
+
+const CITY_NAME_IMAGES = [
+  '/sidi kacem-name.jpg',
+  '/Tanger-name.jpg',
+  '/Taroudant-name.jpg',
+  '/Taounat-name.jpg',
+  '/Casablanca-name.jpg',
+  '/Allemagne-name.jpg',
+  '/Dakhla-name.jpg'
+];
+
+const TabletDisplay = () => {
+  const { id } = useParams();
+  const tabletId = parseInt(id);
+  const [displayScore, setDisplayScore] = useState(0);
+  const [connected, setConnected] = useState(false);
+  const [currentDisplayMode, setCurrentDisplayMode] = useState('individual');
+
+  const backgroundImage = BACKGROUND_IMAGES[tabletId] || BACKGROUND_IMAGES[0];
+  const cityNameImage = CITY_NAME_IMAGES[tabletId] || CITY_NAME_IMAGES[0];
+
+  useEffect(() => {
+    let ws = null;
+
+    const connectWebSocket = () => {
+      const wsServerUrl = window.location.hostname === 'localhost'
+        ? `ws://localhost:3001`
+        : `ws://${window.location.hostname}:3001`;
+
+      ws = new WebSocket(wsServerUrl);
+
+      ws.onopen = () => {
+        setConnected(true);
+        ws.send(JSON.stringify({ type: 'tablet_connected', tabletId }));
+      };
+
+      ws.onclose = () => {
+        setConnected(false);
+        setTimeout(connectWebSocket, 5000);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          console.log('Tablet', tabletId, 'received:', message.type, message.data?.displayMode);
+
+          if (message.type === 'init') {
+            const data = message.data;
+            const mode = data.displayMode || 'individual';
+            // Always apply the display mode from init
+            setCurrentDisplayMode(mode);
+            if (mode !== 'city_name' && data.displayedTablets && data.displayedTablets[tabletId]) {
+              updateDisplayScore(data);
+            }
+          }
+          else if (message.type === 'scores_updated') {
+            const data = message.data;
+            const mode = data.displayMode || 'individual';
+
+            // ALWAYS update display mode — this is how city_name→individual works
+            setCurrentDisplayMode(mode);
+
+            // Update score only when relevant and not in city_name mode
+            if (mode !== 'city_name') {
+              // tabletId undefined = broadcast to all (e.g. total, individual reset)
+              // tabletId matches = targeted update for this tablet
+              if (data.tabletId === undefined || data.tabletId === tabletId) {
+                updateDisplayScore(data);
+              }
+            }
+          }
+          else if (message.type === 'reset_display') {
+            setCurrentDisplayMode('individual');
+            setDisplayScore(0);
+          }
+        } catch (error) {
+          console.error('Error processing message:', error);
+        }
+      };
+    };
+
+    const updateDisplayScore = (data) => {
+      if (data.displayMode === 'total') {
+        const totalScore = data.games.reduce((sum, game) => sum + (game[tabletId] || 0), 0);
+        setDisplayScore(totalScore);
+      } else {
+        const currentScore = data.games?.[data.activeGame]?.[tabletId] || 0;
+        setDisplayScore(currentScore);
+      }
+    };
+
+    connectWebSocket();
+    return () => { if (ws) ws.close(); };
+  }, [tabletId]);
+
+  // ── City name image view ──
+  if (currentDisplayMode === 'city_name') {
+    return (
+      <div className="min-h-screen relative flex items-center justify-center bg-black">
+        <div className={`absolute top-2 right-2 text-2xl ${connected ? 'text-green-500' : 'text-red-500'}`}>•</div>
+        <img
+          src={cityNameImage}
+          alt="City name"
+          style={{ width: '100%', height: '100vh', objectFit: 'contain' }}
+        />
+      </div>
+    );
+  }
+
+  // ── Normal score view ──
+  return (
+    <div
+      className="min-h-screen relative flex items-center justify-center"
+      style={{
+        backgroundImage: `url(${backgroundImage})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center'
+      }}
+    >
+      <div className={`absolute top-2 right-2 text-2xl ${connected ? 'text-green-500' : 'text-red-500'}`}>•</div>
+      <div
+        className="text-white font-bold"
+        style={{
+          fontSize: '15rem',
+          textShadow: '0px 20px 20px rgba(0,0,0,1)',
+        }}
+      >
+        {displayScore}
+      </div>
+    </div>
+  );
+};
+
+export default TabletDisplay;
