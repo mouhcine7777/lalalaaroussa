@@ -168,16 +168,18 @@ const TabletDisplay = () => {
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             justifyContent: 'center',
+            paddingTop: '0vh',
           }}
         >
           <div
             style={{
-              fontSize: '15rem',
+              fontSize: '35rem',
               fontWeight: 'bold',
               color: 'white',
               textShadow: '0px 20px 20px rgba(0,0,0,1)',
+              marginTop: '-7rem',
             }}
           >
             {displayScore}
