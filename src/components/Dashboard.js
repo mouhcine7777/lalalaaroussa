@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 
 const TOTAL_GAMES = 10;
 const TOTAL_PLAYERS = 7;
-const CITY_NAMES = ['sidi kacem', 'Tanger', 'Taroudant', 'Taounat', 'Casablanca', 'Allemagne', 'Dakhla'];
+const CITY_NAMES = ['fes', 'Tanger', 'Taroudant', 'Taounat', 'Casablanca', 'Allemagne', 'Dakhla'];
 
 const Dashboard = () => {
   const [games, setGames] = useState(Array(TOTAL_GAMES).fill(0).map(() => Array(TOTAL_PLAYERS).fill(0)));

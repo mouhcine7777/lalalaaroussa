@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 
 // Background images (existing, shown behind the score)
 const BACKGROUND_IMAGES = [
-  '/sidikacem.jpg',
+  '/fes.jpg',
   '/Tanger.jpg',
   '/Taroudant.jpg',
   '/Taounat.jpg',
@@ -14,7 +14,7 @@ const BACKGROUND_IMAGES = [
 
 // Separate city images shown full-screen when dashboard triggers image mode
 const CITY_IMAGES = [
-  '/city-images/sidikacem.jpg',
+  '/city-images/fes.jpg',
   '/city-images/tanger.jpg',
   '/city-images/taroudant.jpg',
   '/city-images/taounat.jpg',
