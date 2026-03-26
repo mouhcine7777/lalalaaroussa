@@ -1,26 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 
-// Background images (existing, shown behind the score)
+// Background images — order matches Dashboard CITY_NAMES:
 const BACKGROUND_IMAGES = [
-  '/fes.jpg',
-  '/Tanger.jpg',
-  '/Taroudant.jpg',
   '/Taounat.jpg',
+  '/Tanger.jpg',
+  '/Dakhla.jpg',
   '/Casablanca.jpg',
-  '/Allemagne.jpg',
-  '/Dakhla.jpg'
+  '/fes.jpg',
+  '/Taroudant.jpg',
+  '/Allemagne.jpg'
 ];
 
-// Separate city images shown full-screen when dashboard triggers image mode
+// Separate city images — same order as above
 const CITY_IMAGES = [
-  '/city-images/fes.jpg',
-  '/city-images/tanger.jpg',
-  '/city-images/taroudant.jpg',
   '/city-images/taounat.jpg',
+  '/city-images/tanger.jpg',
+  '/city-images/dakhla.jpg',
   '/city-images/casablanca.jpg',
-  '/city-images/allemagne.jpg',
-  '/city-images/dakhla.jpg'
+  '/city-images/fes.jpg',
+  '/city-images/taroudant.jpg',
+  '/city-images/allemagne.jpg'
 ];
 
 const TabletDisplay = () => {
