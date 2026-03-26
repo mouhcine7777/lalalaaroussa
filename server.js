@@ -59,6 +59,11 @@ wss.on('connection', (ws) => {
         currentScores.displayMode = 'image';
         currentScores.displayedTablets = Array(7).fill(true);
 
+        // Preserve games if sent from dashboard
+        if (msg.data && msg.data.games) {
+          currentScores.games = msg.data.games;
+        }
+
         console.log('Switching all tablets to image mode');
 
         // Send image mode to every tablet
@@ -85,6 +90,11 @@ wss.on('connection', (ws) => {
         // Switch all tablets back to score display mode
         currentScores.displayMode = 'individual';
         currentScores.displayedTablets = Array(7).fill(false);
+
+        // Preserve games if sent from dashboard
+        if (msg.data && msg.data.games) {
+          currentScores.games = msg.data.games;
+        }
 
         console.log('Switching all tablets back to score mode');
 
